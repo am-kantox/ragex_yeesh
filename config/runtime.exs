@@ -4,16 +4,45 @@ if working_dir = System.get_env("RAGEX_WORKING_DIR") do
   config :ragex_yeesh, :working_dir, working_dir
 end
 
-# Wire the DEEPSEEK_API_KEY env var into the ragex AI provider config.
+# Wire AI provider API keys from environment variables into Ragex config.
 # Ragex reads keys from :ragex, :ai_keys, not from System.get_env.
-if deepseek_key = System.get_env("DEEPSEEK_API_KEY") do
-  config :ragex, :ai_keys, deepseek_r1: deepseek_key
+ai_keys =
+  [
+    System.get_env("DEEPSEEK_API_KEY") && {:deepseek_r1, System.get_env("DEEPSEEK_API_KEY")},
+    System.get_env("OPENAI_API_KEY") && {:openai, System.get_env("OPENAI_API_KEY")},
+    System.get_env("ANTHROPIC_API_KEY") && {:anthropic, System.get_env("ANTHROPIC_API_KEY")}
+  ]
+  |> Enum.reject(&is_nil/1)
 
-  config :ragex, :ai_providers,
-    deepseek_r1: [
-      endpoint: "https://api.deepseek.com",
-      model: "deepseek-chat"
-    ]
+if ai_keys != [] do
+  config :ragex, :ai_keys, ai_keys
+end
+
+ai_providers =
+  [
+    System.get_env("DEEPSEEK_API_KEY") &&
+      {:deepseek_r1,
+       [
+         endpoint: "https://api.deepseek.com",
+         model: "deepseek-chat"
+       ]},
+    System.get_env("OPENAI_API_KEY") &&
+      {:openai,
+       [
+         endpoint: "https://api.openai.com",
+         model: System.get_env("OPENAI_MODEL", "gpt-4o")
+       ]},
+    System.get_env("ANTHROPIC_API_KEY") &&
+      {:anthropic,
+       [
+         endpoint: "https://api.anthropic.com",
+         model: System.get_env("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+       ]}
+  ]
+  |> Enum.reject(&is_nil/1)
+
+if ai_providers != [] do
+  config :ragex, :ai_providers, ai_providers
 end
 
 if System.get_env("PHX_SERVER") do
@@ -21,7 +50,9 @@ if System.get_env("PHX_SERVER") do
 end
 
 config :ragex_yeesh, RagexYeeshWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+  http: [port: String.to_integer(System.get_env("PORT", "4000"))],
+  # Allow iframe embedding from Oeditus host
+  check_origin: false
 
 if config_env() == :prod do
   secret_key_base =
