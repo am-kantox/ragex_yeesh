@@ -4,13 +4,16 @@ Browser-based terminal interface for [Ragex](https://github.com/Oeditus/ragex) c
 
 RagexYeesh wraps every Ragex Mix task into an interactive web terminal, complete with tab-completion, command history, rich help output, and async execution for long-running analyses. It is designed to run inside the Oeditus Docker pipeline, analyzing a mounted codebase via a single browser tab.
 
+![RagexYeesh terminal interface](priv/screenshot.png)
+
 ## Architecture
 
-```
-Browser (xterm.js)  <-->  Phoenix LiveView  <-->  Yeesh terminal  <-->  Ragex Mix tasks
-                                                       |
-                                              RagexCommand macro
-                                          (path injection, async, help)
+```mermaid
+flowchart LR
+    A["Browser\n(xterm.js)"] <--> B["Phoenix LiveView"]
+    B <--> C["Yeesh terminal"]
+    C <--> D["Ragex Mix tasks"]
+    C --> E["RagexCommand macro\n(path injection, async, help)"]
 ```
 
 On startup, the application:
