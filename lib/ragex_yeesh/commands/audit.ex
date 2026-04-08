@@ -32,7 +32,8 @@ defmodule RagexYeesh.Commands.Audit do
   def usage do
     if Code.ensure_loaded?(Mix) do
       case Mix.Task.get("ragex.audit") do
-        nil -> "audit [options]"
+        nil ->
+          "audit [options]"
 
         mod ->
           case Code.fetch_docs(mod) do

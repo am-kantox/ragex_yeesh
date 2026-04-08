@@ -6,7 +6,8 @@ config :ragex_yeesh, RagexYeeshWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "VUDTOu2AEnmVT9llWIJo2EOmb/tMbDbwYOW7Er3hnx0wWCH1nR4XKr3GzgmE8rBfk7Fj8RqXw2NpYmT5vL3cH9dA6sGnBx4eUiOlZr1aJfCbKmVtSyDhEwPqMzWoI0u",
+  secret_key_base:
+    "VUDTOu2AEnmVT9llWIJo2EOmb/tMbDbwYOW7Er3hnx0wWCH1nR4XKr3GzgmE8rBfk7Fj8RqXw2NpYmT5vL3cH9dA6sGnBx4eUiOlZr1aJfCbKmVtSyDhEwPqMzWoI0u",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:ragex_yeesh, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:ragex_yeesh, ~w(--watch)]}

@@ -55,9 +55,7 @@ defmodule RagexYeesh.Preloader do
 
         case Ragex.Agent.Core.quick_analyze(working_dir) do
           {:ok, %{summary: summary}} ->
-            Logger.info(
-              "Pre-loading complete: #{summary.total_issues} issues found"
-            )
+            Logger.info("Pre-loading complete: #{summary.total_issues} issues found")
 
           {:ok, result} ->
             Logger.info("Pre-loading complete: #{inspect(Map.keys(result))}")

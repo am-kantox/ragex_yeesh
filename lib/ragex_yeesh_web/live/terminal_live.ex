@@ -26,12 +26,54 @@ defmodule RagexYeeshWeb.TerminalLive do
   end
 
   @impl true
+  def handle_info(
+        {:chat_interactive, output, io_server, task_pid, original_shell, prompt, _session},
+        socket
+      ) do
+    # The chat task has finished analysis and is now waiting for user input.
+    # Switch the Yeesh session to :mix_task mode so subsequent inputs
+    # are forwarded to the IOServer instead of being dispatched as commands.
+    session_pid = get_session_pid(socket)
+
+    if session_pid do
+      Yeesh.Session.update(session_pid, fn s ->
+        %{
+          s
+          | mode: :mix_task,
+            context:
+              Map.merge(s.context, %{
+                mix_io_server: io_server,
+                mix_task_pid: task_pid,
+                mix_prompt: prompt,
+                mix_original_shell: original_shell
+              })
+        }
+      end)
+    end
+
+    # Push the analysis output and the new prompt to the terminal
+    socket =
+      socket
+      |> push_event("ragex:async_output", %{output: output})
+      |> push_event("yeesh:prompt", %{prompt: prompt})
+
+    {:noreply, socket}
+  end
+
   def handle_info({:ragex_task_result, output}, socket) do
     {:noreply, push_event(socket, "ragex:async_output", %{output: output})}
   end
 
   def handle_info({:ragex_task_error, reason}, socket) do
     {:noreply, push_event(socket, "ragex:async_error", %{error: reason})}
+  end
+
+  # The session_pid is stored in the process dictionary by the
+  # TerminalComponent (which shares this LiveView process).
+  # We read it from there since the component's assigns are not
+  # directly accessible from the parent LiveView.
+  defp get_session_pid(_socket) do
+    Process.get(:yeesh_session_pid)
   end
 
   @impl true
