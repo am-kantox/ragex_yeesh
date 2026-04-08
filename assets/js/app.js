@@ -21,6 +21,7 @@ const YeeshTerminal = {
 // directly to the xterm instance exposed above.
 const AsyncBridge = {
   mounted() {
+    // --- One-shot output (legacy / non-streamed commands) ---
     this.handleEvent("ragex:async_output", ({ output }) => {
       const term = window.__ragexTerm;
       if (term && output && output.length > 0) {
@@ -37,6 +38,54 @@ const AsyncBridge = {
         term.writeln("\x1b[31merror: \x1b[0m" + error);
         const prompt = window.__ragexPrompt ? window.__ragexPrompt() : "ragex> ";
         term.write(prompt);
+      }
+    });
+
+    // --- Streaming output (throttled chunks from audit/chat) ---
+    //
+    // Raw chunks are written to xterm for real-time feedback.  When the
+    // stream finishes the server sends a Marcli-rendered version of the
+    // full response; we erase the raw text and replace it.
+    let streamStartAbsRow = null;
+
+    this.handleEvent("ragex:stream_chunk", ({ text }) => {
+      const term = window.__ragexTerm;
+      if (term && text) {
+        if (streamStartAbsRow === null) {
+          const buf = term.buffer.active;
+          streamStartAbsRow = buf.baseY + buf.cursorY;
+        }
+        const formatted = text.replace(/(?<!\r)\n/g, "\r\n");
+        term.write(formatted);
+      }
+    });
+
+    this.handleEvent("ragex:stream_done", ({ formatted }) => {
+      const term = window.__ragexTerm;
+      if (term) {
+        if (formatted && streamStartAbsRow !== null) {
+          // Calculate how many rows the raw stream occupies
+          const buf = term.buffer.active;
+          const currentAbsRow = buf.baseY + buf.cursorY;
+          const lines = currentAbsRow - streamStartAbsRow;
+
+          if (lines > 0) {
+            // Move cursor to stream start and clear everything below
+            term.write(`\x1b[${lines}A\r\x1b[J`);
+          } else {
+            // Same line -- just clear the line
+            term.write("\r\x1b[K");
+          }
+
+          // Write the Marcli-rendered replacement
+          const fmtText = formatted.replace(/(?<!\r)\n/g, "\r\n");
+          term.write(fmtText);
+        }
+
+        term.writeln("");
+        const prompt = window.__ragexPrompt ? window.__ragexPrompt() : "ragex> ";
+        term.write(prompt);
+        streamStartAbsRow = null;
       }
     });
   },

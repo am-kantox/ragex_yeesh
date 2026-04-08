@@ -2,9 +2,13 @@ defmodule RagexYeesh.Commands.Audit do
   @moduledoc """
   Run a comprehensive AI-powered code audit.
 
-  Calls the Ragex API directly (bypassing MixRunner) so that the
-  AI report can be **streamed** chunk-by-chunk into the Yeesh
-  terminal while keeping the LiveView responsive.
+  Uses a two-phase approach so the AI report is **streamed**
+  chunk-by-chunk into the Yeesh terminal:
+
+  1. Analysis phase -- `Core.analyze_project/2` with `skip_report: true`.
+  2. Report phase  -- `Core.stream_generate_report/3` with an `:on_chunk`
+     callback that forwards each piece to the LiveView for throttled
+     delivery to the frontend.
 
   ## Usage
 
@@ -83,15 +87,19 @@ defmodule RagexYeesh.Commands.Audit do
       [
         include_dead_code: Keyword.get(opts, :dead_code, false),
         skip_embeddings: false,
+        skip_report: true,
         verbose: false
       ]
       |> maybe_put(:provider, parse_provider(opts[:provider]))
       |> maybe_put(:model, opts[:model])
 
+    # Phase 1: Analysis (no AI report yet)
     case Core.analyze_project(path, core_opts) do
       {:ok, result} ->
-        output = format_result(result, format)
-        send(caller, {:ragex_task_result, output})
+        send(caller, {:ragex_stream_chunk, "Analysis complete. Generating report...\r\n"})
+
+        # Phase 2: Stream the AI report
+        stream_report(caller, path, result, format, opts)
 
       {:error, reason} ->
         send(caller, {:ragex_task_error, "Audit failed: #{inspect(reason)}"})
@@ -104,15 +112,32 @@ defmodule RagexYeesh.Commands.Audit do
       send(caller, {:ragex_task_error, "Audit exited: #{inspect(reason)}"})
   end
 
-  defp format_result(result, "json") do
-    Jason.encode!(result, pretty: true)
+  defp stream_report(caller, _path, result, "json", _opts) do
+    # JSON format cannot be streamed meaningfully; send the whole blob.
+    output = Jason.encode!(result, pretty: true)
+    send(caller, {:ragex_task_result, output})
   end
 
-  defp format_result(result, _markdown) do
-    case result.report do
-      nil -> "No AI report was generated."
-      "" -> "AI report is empty."
-      report -> Marcli.render(report, newline: "\r\n")
+  defp stream_report(caller, path, result, _markdown, opts) do
+    on_chunk = fn
+      %{content: text} when is_binary(text) and text != "" ->
+        send(caller, {:ragex_stream_chunk, text})
+
+      _ ->
+        :ok
+    end
+
+    stream_opts =
+      [on_chunk: on_chunk, verbose: false]
+      |> maybe_put(:provider, parse_provider(opts[:provider]))
+      |> maybe_put(:model, opts[:model])
+
+    case Core.stream_generate_report(path, result.issues, stream_opts) do
+      {:ok, content, _ai_status} ->
+        send(caller, {:ragex_stream_done, content})
+
+      {:error, reason} ->
+        send(caller, {:ragex_task_error, "Report generation failed: #{inspect(reason)}"})
     end
   end
 
