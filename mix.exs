@@ -4,7 +4,7 @@ defmodule RagexYeesh.MixProject do
   def project do
     [
       app: :ragex_yeesh,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -54,7 +54,7 @@ defmodule RagexYeesh.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       # Yeesh terminal component
-      {:yeesh, "~> 0.5"},
+      {:yeesh, "~> 0.8"},
       # Ragex code analysis (local path in dev, hex in prod)
       ragex_dep()
     ]

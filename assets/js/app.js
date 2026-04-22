@@ -2,42 +2,32 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/ragex_yeesh"
+import "phoenix-colocated/yeesh"
 import topbar from "../vendor/topbar"
-import {YeeshTerminal as _YeeshTerminal} from "yeesh/assets/js/yeesh/hook.js"
-
-// Wrap the upstream hook so the xterm Terminal instance is accessible
-// from the AsyncBridge hook (needed to push async task output).
-const YeeshTerminal = {
-  ..._YeeshTerminal,
-  mounted() {
-    _YeeshTerminal.mounted.call(this);
-    // Publish the terminal reference for sibling hooks.
-    window.__ragexTerm = this.term;
-    window.__ragexPrompt = () => this.prompt;
-  },
-};
 
 // Receives push_event from TerminalLive.handle_info and writes
-// directly to the xterm instance exposed above.
+// directly to the xterm Lit custom element exposed via DOM.
+const getYeeshEl = () => document.querySelector('yeesh-terminal');
+const getTerm = () => getYeeshEl()?.term;
+const getPrompt = () => getYeeshEl()?.prompt ?? 'ragex> ';
+
 const AsyncBridge = {
   mounted() {
     // --- One-shot output (legacy / non-streamed commands) ---
     this.handleEvent("ragex:async_output", ({ output }) => {
-      const term = window.__ragexTerm;
+      const term = getTerm();
       if (term && output && output.length > 0) {
         const formatted = output.replace(/(?<!\r)\n/g, "\r\n");
         term.writeln(formatted);
-        const prompt = window.__ragexPrompt ? window.__ragexPrompt() : "ragex> ";
-        term.write(prompt);
+        term.write(getPrompt());
       }
     });
 
     this.handleEvent("ragex:async_error", ({ error }) => {
-      const term = window.__ragexTerm;
+      const term = getTerm();
       if (term) {
         term.writeln("\x1b[31merror: \x1b[0m" + error);
-        const prompt = window.__ragexPrompt ? window.__ragexPrompt() : "ragex> ";
-        term.write(prompt);
+        term.write(getPrompt());
       }
     });
 
@@ -49,7 +39,7 @@ const AsyncBridge = {
     let streamStartAbsRow = null;
 
     this.handleEvent("ragex:stream_chunk", ({ text }) => {
-      const term = window.__ragexTerm;
+      const term = getTerm();
       if (term && text) {
         if (streamStartAbsRow === null) {
           const buf = term.buffer.active;
@@ -61,7 +51,7 @@ const AsyncBridge = {
     });
 
     this.handleEvent("ragex:stream_done", ({ formatted }) => {
-      const term = window.__ragexTerm;
+      const term = getTerm();
       if (term) {
         if (formatted && streamStartAbsRow !== null) {
           // Calculate how many rows the raw stream occupies
@@ -83,8 +73,7 @@ const AsyncBridge = {
         }
 
         term.writeln("");
-        const prompt = window.__ragexPrompt ? window.__ragexPrompt() : "ragex> ";
-        term.write(prompt);
+        term.write(getPrompt());
         streamStartAbsRow = null;
       }
     });
@@ -99,7 +88,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   heartbeatIntervalMs: 600_000,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, YeeshTerminal, AsyncBridge},
+  hooks: {...colocatedHooks, AsyncBridge},
 })
 
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
